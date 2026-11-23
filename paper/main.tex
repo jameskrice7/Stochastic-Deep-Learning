@@ -1,0 +1,284 @@
+\documentclass[12pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage[authoryear,round]{natbib}
+\usepackage[hidelinks]{hyperref}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}[theorem]{Proposition}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\KL}{\mathrm{KL}}
+\newcommand{\tr}{\operatorname{tr}}
+\newcommand{\Cov}{\operatorname{Cov}}
+\newcommand{\Var}{\operatorname{Var}}
+\newcommand{\N}{\mathcal{N}}
+\newcommand{\F}{\mathcal{F}}
+\newcommand{\half}{\tfrac12}
+\newcommand{\R}{\mathbb{R}}
+\DeclareMathOperator{\diag}{diag}
+
+\title{Stochastic Latent Differential Inference\\with Predictable Adjoint Control Variates}
+\author{James K Rice\thanks{PhD Candidate, University of Essex, \texttt{james.k.rice@essex.ac.uk}}}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Latent stochastic differential equations (SDEs) model irregularly observed sequences by coupling a continuous-time latent process to discrete emissions. We revisit two choices in Stochastic Latent Differential Inference (SLDI), the approximation of the posterior path law and the use of a learned adjoint. First, we give the exact best evidence lower bound attainable by an encoder that updates only the initial state, and identify when a positive gap remains even with unrestricted encoder capacity. We use an observation-conditioned drift with shared diffusion to address this restriction. Second, we retain the exact pathwise gradient of the discretized objective and use mixed parameter--innovation derivatives to train a predictable Hermite control variate. The regression state includes the latent tangent in the parameter directions being corrected. We prove conditional unbiasedness for independently fitted coefficients and decompose residual gradient variance into truncation, feature and fitting errors. A linear Gaussian benchmark admits exact second-order cancellation. In a nonlinear, multiplicative-noise benchmark with irregular observations, the median residual gradient variance trace was 1.5\% of the uncorrected trace using 1,024 pilot paths. With 128 pilots the first-order correction performed better than the second-order correction. These are finite-grid results for synthetic smoothing problems.
+\end{abstract}
+
+\noindent\textbf{Keywords.} Latent SDEs, variational smoothing, pathwise gradients, adjoint sensitivity, control variates.
+
+\section{Introduction}
+An irregularly sampled sequence provides information about stochastic dynamics between observations. A latent SDE can propagate process uncertainty over these intervals and evaluate the observation model at the measured times. In a variational smoother, the observations also change the law of the intervening path. For example, a noisy measurement late in a sequence of observations of Brownian motion changes the law of recent increments even if the starting point is known. A recognizer that changes only the latent initial distribution cannot express this update.
+
+The first version of SLDI \citep{rice2026sldi} embedded a neural It\^o SDE in a variational encoder--decoder and proposed learning an auxiliary adjoint field. Both decisions leave a question open. On the inference side, what is the best bound possible when the recognition network controls only the initial state? On the optimization side, how can a learned field improve the gradient estimate while preserving the expectation of the gradient of the original objective? The second question matters because the backward sensitivity at a grid point depends on innovations later in the path. Multiplying a future-dependent approximation by a nominally centered innovation can yield a nonzero expected update.
+
+We make three contributions.
+\begin{enumerate}
+\item We compute the optimal initial-only variational law in closed form, together with its exact evidence gap and equality condition. We retain SLDI's encoder--SDE--decoder architecture and use an observation-conditioned drift correction to expand the path family.
+\item We learn the coefficients of a martingale control variate for the discrete pathwise gradient. A tangent-augmented state characterizes the information needed by the optimal coefficients. One adjoint of the directional gradient supplies mixed derivatives for both first- and second-order coefficient targets. The fitted control enters the optimizer as an additive, conditionally centered correction.
+\item We derive a linear Gaussian oracle and evaluate the learned correction on nonlinear synthetic smoothing problems. We isolate the effects of the regression target, the tangent features and the Hermite order under two pilot budgets.
+\end{enumerate}
+
+\section{Related work}
+\paragraph{Variational smoothing in continuous time.}
+Variational inference over diffusion paths predates latent neural SDEs \citep{archambeau2007variational}. \citet{li2020scalable} combine parameterized latent SDEs, a shared-diffusion variational posterior and stochastic adjoint differentiation. The shared-diffusion model here follows that line. Latent ODEs \citep{rubanova2019latent} use continuous-time latent dynamics for irregular observations. Guided diffusion bridges use a drift adjustment to encode endpoint information \citep{schauer2017guided}. The initial-only gap in this paper answers a narrower question about the original SLDI encoder. It measures the best attainable bound when the conditional path kernel is kept fixed.
+
+\paragraph{Adjoints and gradient variance.}
+Stochastic adjoints address the cost of differentiating a sample path \citep{li2020scalable,kidger2021efficient}. Adjoint matching uses backward sensitivities as targets in stochastic optimal control \citep{dom2025adjoint}, with related time-reversed formulations studied by \citet{mei2026bsde}. Our use of an adjoint concerns the innovation derivative of the ELBO gradient at a fixed set of model parameters. A forecast of this derivative controls gradient variance while leaving the expected update unchanged. The solver and its first derivative can be chosen independently of the regression scheme.
+
+\citet{miller2017reducing} construct control variates for reparameterization gradients using tractable approximations of the gradient. Sticking the landing removes a zero-mean score contribution from a variational gradient \citep{roeder2017sticking}, with an SDE adaptation in \citet{xu2022infinitely}. Here we start with the gradient of a finite-grid ELBO written with an analytic conditional KL and target the remaining innovation-driven variation. This correction does not require access to a density derivative of the exact posterior.
+
+The closest mathematical precedent is the regression construction of \citet{belomestny2018variance}, which expands terminal diffusion functionals in an orthogonal basis of step innovations. Our construction applies that representation to an ELBO derivative with running and observation costs. The pertinent Markov state then contains a parameter tangent. We identify the corresponding mixed-adjoint regression targets and compare them with direct Hermite moments under a finite pilot budget.
+
+\section{Stochastic latent differential inference}
+\label{sec:model}
+Let \(x=\{(t_i,x_i)\}_{i=1}^M\) with \(0<t_1<\dots<t_M\le T\). We condition on the observation schedule and treat it as fixed in each calculation. A generative law \(P_\theta\) on latent paths has
+\begin{equation}
+ Z_0\sim p_0,\qquad dZ_t=b_\theta(Z_t,t)\,dt+
+ \Sigma_\theta(Z_t,t)\,dW_t .
+ \label{eq:sde}
+\end{equation}
+The likelihood factorizes as \(\ell_x(Z)=\prod_i p_\psi(x_i\mid Z_{t_i})\). A Gaussian decoder with a neural mean and positive diagonal scale is one example. The conditional likelihood of \(x\) is \(p(x)=\E_{P_\theta}\ell_x(Z)\). At fixed parameters, the model includes latent process noise and emission noise. Parameter uncertainty would require an additional distribution over parameters.
+
+\subsection{The exact limit of an initial-state encoder}
+\label{sec:initial}
+Write \(P(dz\mid z_0)\) for the generative path kernel from \(Z_0=z_0\). The first version of SLDI uses \(Q(dz)=q_0(dz_0)P(dz\mid z_0)\). Since the conditional kernels coincide, \(\KL(Q\|P)=\KL(q_0\|p_0)\). We can optimize the bound over all absolutely continuous initial laws.
+
+\begin{proposition}[Initial-only evidence gap]
+\label{prop:gap}
+Set \(m_x(z_0)=\E_P[\log \ell_x(Z)\mid Z_0=z_0]\). Suppose \(\ell_x>0\) almost surely, \(\log\ell_x\in L^1(P)\) and \(p(x)<\infty\). Define \(A_x=\E_{p_0}e^{m_x(Z_0)}\). If the tilted law below has finite initial KL and finite expected absolute log likelihood, the maximal initial-only ELBO is \(\log A_x\). It is attained at
+\begin{equation}
+ q_0^\star(dz_0)=A_x^{-1}e^{m_x(z_0)}p_0(dz_0).
+\end{equation}
+The gap \(\log p(x)-\log A_x\) is nonnegative. It is zero exactly when \(\ell_x(Z)\) is almost surely constant under \(P(\cdot\mid z_0)\) for \(p_0\)-almost every \(z_0\).
+\end{proposition}
+\begin{proof}
+The ELBO for an admissible \(q_0\) is \(\E_{q_0}m_x-\KL(q_0\|p_0)=\log A_x-\KL(q_0\|q_0^\star)\). Conditional Jensen gives \(e^{m_x(z_0)}\le \E_P[\ell_x\mid Z_0=z_0]\), so \(0<A_x\le p(x)\). Strict convexity of the exponential gives the stated conditional equality criterion. The integrated difference of the two conditional expressions can vanish only when their pointwise difference vanishes almost surely.
+\end{proof}
+
+A universal encoder can at best attain this restricted optimum. In a scalar linear Gaussian model with a noisy terminal measurement, any positive latent variance conditional on \(Z_0\) suffices for a strict gap. Section~\ref{sec:ou} quantifies it on the experimental grid.
+
+\subsection{Observation-conditioned dynamics and the ELBO}
+For smoothing, an encoder reads the full observed sequence with timestamps. It outputs an initial distribution \(q_{\phi,0}(\cdot\mid x)\) and a deterministic context \(c_x(t)\). This context may be produced by a bidirectional sequence encoder. A recognition drift \(u_\phi\) changes the latent dynamics within the path:
+\begin{equation}
+ Z_0\sim q_{\phi,0},\qquad
+ dZ_t=[b_\theta(Z_t,t)+\Sigma_\theta(Z_t,t)u_\phi(Z_t,t,c_x(t))]\,dt
+       +\Sigma_\theta(Z_t,t)\,dW_t^Q.
+ \label{eq:posterior}
+\end{equation}
+We assume strong well-posedness, equivalent initial distributions with finite initial KL, a square invertible diffusion, and a valid Girsanov change of measure with finite expected control energy under \(Q\) (for example, bounded \(u_\phi\) on a finite horizon). Invertibility makes the driving innovations recoverable from the latent path. Girsanov's formula \citep{girsanov1960transforming} gives
+\begin{equation}
+ \KL(Q\|P_\theta)=\KL(q_{\phi,0}\|p_0)+
+   \half\,\E_Q\int_0^T \|u_\phi(Z_t,t,c_x(t))\|^2\,dt .
+ \label{eq:kl}
+\end{equation}
+In fact, the log density ratio under \(Q\) is the initial log density ratio plus the control energy and \(\int u_\phi^\top dW^Q\). The stochastic integral has zero mean. This entropy uses the drift correction in Brownian coordinates. It is finite under the stated assumptions even though diffusion trajectories generally have no time derivative. Setting \(u_\phi=0\) recovers the initial-only model. The smoothing context can depend on future observations relative to physical time because the sequence \(x\) is fixed before simulating \(W^Q\). A forecasting application would build the context from observations available at the forecast origin.
+
+\subsection{A finite-grid objective}
+\label{sec:grid}
+Fix a grid \(s_0=0<\dots<s_N=T\) containing all observation times, set \(\Delta_n=s_{n+1}-s_n\), and write \(w\) for all trainable parameters. The recognition step is
+\begin{equation}
+ Z_{n+1}=F_n(Z_n,\xi_n;w)
+ =Z_n+\Delta_n[b_\theta+\Sigma_\theta u_\phi]_n
+   +\sqrt{\Delta_n}\,\Sigma_{\theta,n}\xi_n,\qquad
+ \xi_n\stackrel{\mathrm{iid}}{\sim}\N(0,I).
+ \label{eq:euler}
+\end{equation}
+The prior Euler step uses \(u_\phi=0\) and has the same conditional Gaussian covariance. The chain rule for relative entropy therefore yields an \emph{exact} ELBO for the Euler model, with the conditional transition KL \(\Delta_n\|u_\phi\|^2/2\). Let \(\ell_n(z;w)\) be the log likelihood of emissions at \(s_n\), zero when there are none, and let \(k_n(z;w)=-\Delta_n\|u_\phi(z,s_n,c_x(s_n))\|^2/2\). Then
+\begin{equation}
+ J_\Delta(w)=\E\!\left[L_\Delta\right],\qquad
+ L_\Delta = -\KL(q_{\phi,0}\|p_0)+
+             \sum_{n=0}^{N-1}\bigl[k_n(Z_n;w)+\ell_{n+1}(Z_{n+1};w)\bigr].
+ \label{eq:objective}
+\end{equation}
+This form uses a tractable initial KL, for example with Gaussian initial laws. An initial reparameterization \(Z_0=H(\zeta;w,x)\) uses an independent base draw \(\zeta\). All later guarantees concern \(J_\Delta\). The difference between this objective and the continuous-time objective involves solver accuracy and is outside the variance correction.
+
+\section{Predictable adjoint control variates}
+\label{sec:controls}
+
+\subsection{A correction for the discrete gradient}
+Assume \(L_\Delta\) is differentiable in \(w\), differentiation can pass through the expectation in \eqref{eq:objective}, and \(g=\nabla_w L_\Delta\) is square integrable. The ordinary discrete gradient is computed by reverse-mode differentiation of the Euler recurrence. With column adjoints,
+\begin{align}
+ a_N &= \nabla_z\ell_N(Z_N;w), \nonumber\\
+ a_n &= \nabla_z(\ell_n+k_n)(Z_n;w)+(D_zF_n)^\top a_{n+1},
+ \qquad  n=N-1,\ldots,0, \label{eq:adjoint}\\
+ g &= -\nabla_w\KL(q_{\phi,0}\|p_0)+(D_wH)^\top a_0 \nonumber\\
+ &\quad+\sum_{n=0}^{N-1}\bigl\{(D_wF_n)^\top a_{n+1}
+   +\partial_w[k_n(Z_n;w)+\ell_{n+1}(Z_{n+1};w)]\bigr\}. \nonumber
+\end{align}
+Here the Jacobians of \(F_n\) are evaluated on the simulated path, partial parameter derivatives hold the latent state fixed, and \(\ell_0=0\). Equation~\eqref{eq:adjoint} is the adjoint of the implemented random map, including the state derivatives of the diffusion coefficients and the impulse contributions of emissions.
+
+Choose an orthonormal \(p\times r\) matrix \(V\) of parameter directions, with \(p=\dim w\), and let \(G=V^\top g\). For example, \(V\) can select a small block of the recognition network. All statements hold conditionally on the fixed data, parameters and directions. The pre-step filtration is \(\F_n=\sigma(\zeta,\xi_0,\ldots,\xi_{n-1})\). Let \(\mathcal H\) be a finite set of nonconstant, orthonormal Hermite polynomials for the standard Gaussian law, indexed by multi-indices \(\alpha\). Define the correction
+\begin{equation}
+ C=\sum_{n=0}^{N-1}\sum_{\alpha\in\mathcal H}
+      \widehat A_{n,\alpha}(U_n)h_\alpha(\xi_n),
+ \qquad U_n\text{ is }\F_n\text{-measurable}.
+ \label{eq:correction}
+\end{equation}
+The coefficients are fitted on independent pilot paths or fixed by training history before the current noise is drawn. Treat \(C\) as a value to subtract after computing \(g\). Thus \(g-VC\) corrects the projected directions and retains the exact sample derivative in the orthogonal complement. In an autodiff implementation the fitted correction is detached from the update.
+
+\begin{theorem}[Conditional unbiasedness and residual variance]
+\label{thm:projection}
+Condition on an independently fitted set of square-integrable coefficients, and take expectations over a fresh path. Then
+\(\E[g-VC]=\nabla_w J_\Delta(w)\).
+Let
+\[
+ B_{n,\alpha}=\E[G h_\alpha(\xi_n)\mid\F_n],
+ \qquad A_{n,\alpha}(U_n)=\E[B_{n,\alpha}\mid U_n].
+\]
+Writing \(\mathcal H^c\) for the omitted nonconstant Hermite indices, the adjusted projected gradient satisfies
+\begin{align}
+\tr\Cov(G-C) &=
+ \tr\Cov(\E[G\mid\F_0])+
+ \sum_{n,\alpha\in\mathcal H^c}\E\|B_{n,\alpha}\|^2
+ \nonumber\\
+ &\quad+\sum_{n,\alpha\in\mathcal H}\E\|B_{n,\alpha}-A_{n,\alpha}(U_n)\|^2
+       +\sum_{n,\alpha\in\mathcal H}\E\|A_{n,\alpha}(U_n)-\widehat A_{n,\alpha}(U_n)\|^2.
+ \label{eq:variance}
+\end{align}
+In particular the optimal coefficients given \(U_n\) are \(A_{n,\alpha}\). The change in full-gradient covariance trace equals the change in the projected trace.
+\end{theorem}
+\begin{proof}
+Each correction has conditional mean zero given \(\F_n\) and the fit, by independence of the fresh innovation. Let \(M_n=\E[G\mid\F_n]\). Since \(G\) is \(\F_N\)-measurable, it equals \(M_0+\sum_n(M_{n+1}-M_n)\). Conditional on \(\F_n\), expand each difference in the complete Hermite basis of the independent \(\xi_n\). Its coefficient is \(B_{n,\alpha}\) and its constant term is zero. Terms from different steps are orthogonal because they are martingale differences, and terms at the same step are orthogonal by the conditional Hermite inner products. The remaining within-index squared error splits by conditional expectation on \(U_n\), giving \eqref{eq:variance}. Finally, the squared Euclidean norm of a centered gradient decomposes into its projections onto the span of \(V\) and its orthogonal complement.
+\end{proof}
+
+Equation~\eqref{eq:variance} leaves three errors for the fitted correction: omitted Hermite orders, information discarded by \(U_n\), and coefficient estimation error. A fit can increase variance if its estimation error exceeds the reduction achieved by the population coefficients. Any validation-based decision to include or scale a correction must also be made independently of the current path. The separation matters even for a single step: with \(G(\xi)=\xi^2\), using \(\widehat A(\xi)=\xi\) in the correction \(\widehat A(\xi)\xi\) shifts the gradient mean by one. A coefficient network evaluated on a post-step state or a realized backward adjoint can produce this dependence.
+
+\subsection{The regression state and the mixed-adjoint targets}
+\label{sec:targets}
+Let \(S_n=(D_w Z_n)V\) be the tangent of the state in the corrected directions, and define \(X_n=(Z_n,S_n)\). It is computed before step \(n\) by
+\begin{equation}
+ S_0=(D_w H)V,\qquad
+ S_{n+1}=D_zF_n\,S_n+D_wF_n\,V .
+ \label{eq:tangent}
+\end{equation}
+For a fixed input sequence and grid, \(X_n\) is a Markov state. The contribution to \(G\) of all costs accrued before drawing \(\xi_n\) is \(\F_n\)-measurable. Their product with any nonconstant \(h_\alpha(\xi_n)\) has conditional expectation zero. All other gradient contributions are deterministic functions of \(X_n\) and the remaining innovations, using \eqref{eq:tangent} and the directional derivatives of the step costs. Therefore \(B_{n,\alpha}\) depends on the past only through \(X_n\). Using \(U_n=X_n\) eliminates the feature error in \eqref{eq:variance} at the population optimum. A coefficient network shared across sequences and steps would also take the observation context and grid information needed to specify the remaining recurrence as inputs.
+
+The direct regression target is \(G h_\alpha(\xi_n)\). At low Hermite orders we can instead use Gaussian integration by parts. Let \(D_i G=\partial G/\partial(\xi_n)_i\) with all other base draws fixed. Under conditional Gaussian integration-by-parts regularity (integrability of the displayed targets and vanishing boundary terms), the following targets have the same conditional mean:
+\begin{equation}
+\begin{array}{c|c}
+ h_\alpha(\xi_n) & \text{mixed-derivative regression target}\\ \hline
+ (\xi_n)_i & D_iG\\[2pt]
+ ((\xi_n)_i^2-1)/\sqrt{2} & (\xi_n)_i D_iG/\sqrt{2}\\[2pt]
+ (\xi_n)_i(\xi_n)_j,\quad i<j &
+ \bigl[(\xi_n)_j D_iG+(\xi_n)_i D_jG\bigr]/2 .
+\end{array}
+\label{eq:targets}
+\end{equation}
+For the diagonal term, apply the first-order identity to \(G(\xi_n)_i\), then subtract the expectation of \(G\). For the cross term, apply it in either coordinate and average. The derivatives are taken before projecting onto \(U_n\), so the same target identity holds with state-only features. The target paths can use all future innovations. Only the fitted prediction used in \eqref{eq:correction} must be predictable.
+
+The derivatives in \eqref{eq:targets} can be obtained by a single reverse sweep of the directional-gradient calculation for each scalar output, or by a batched reverse sweep for the chosen block. Specifically write \(X_{n+1}=\mathcal F_n(X_n,\xi_n)\) for the augmented recurrence, and write \(G=\mathrm{const}+\sum_{n=0}^N R_n(X_n)\) using the directional derivatives of \(\ell_n+k_n\), with \(k_N=0\). The constant is the derivative of the analytic initial KL. With \(P_n\) a matrix of \(r\) adjoint columns,
+\begin{equation}
+ \begin{aligned}
+ P_N&=(D_XR_N)^\top,\qquad
+ P_n=(D_XR_n)^\top+(D_X\mathcal F_n)^\top P_{n+1},\\
+ (D_{\xi_n}G)^\top&=(D_{\xi_n}\mathcal F_n)^\top P_{n+1}.
+ \end{aligned}
+ \label{eq:mixed}
+\end{equation}
+In the last line the step cost \(R_n\) has no explicit dependence on \(\xi_n\). This sweep uses mixed second derivatives of the original computation and supplies both first- and second-order targets without an innovation Hessian of \(G\). If pilot computing cost is the limiting factor, direct moment targets remain an alternative. At deployment, the update requires the ordinary gradient, the predictable features and the fitted correction. It need not compute mixed derivatives on the fresh path.
+
+\paragraph{Training protocol.}
+At a fixed parameter iterate, simulate independent pilot paths and evaluate the tangent, innovations and mixed targets. Fit the coefficient functions by squared loss. On a fresh batch, evaluate these functions immediately before each step and accumulate \eqref{eq:correction} using the subsequent innovation. Compute \eqref{eq:adjoint} and average the corrected gradients for the model update. A fit from a preceding iteration preserves conditional unbiasedness if it is fixed before drawing the new batch, although stale coefficients can increase the variance. Pilot and update draws must remain independent conditional on the training history.
+
+\section{Experiments}
+\label{sec:experiments}
+We first use a scalar linear Gaussian model to verify the gap and the gradient correction against closed-form values. We then evaluate gradient estimates at fixed parameters in nonlinear synthetic smoothers, with each estimator targeting the same finite-grid ELBO. The experiments use independent pilot and evaluation paths. The replication package includes generation seeds, observations, raw per-run results and numerical derivative checks.
+
+\subsection{Linear Gaussian oracle}
+\label{sec:ou}
+For the Euler discretization of the scalar Ornstein--Uhlenbeck process with drift \(-a Z_t\) and diffusion \(\sigma\), let \(\rho=\prod_n (1-a\Delta_n)\) and \(\beta_n=\sqrt{\Delta_n}\prod_{j>n}(1-a\Delta_j)\). Then \(Z_N=\rho Z_0+\sigma W\), with \(W=\sum_n\beta_n\xi_n\) and \(B=\sum_n\beta_n^2\). There is one noisy observation \(x\mid Z_N\sim\N(Z_N,\tau^2)\).
+
+With \(Z_0\sim\N(m_0,v_0)\), let \(\varphi(x;m,v)\) denote the univariate Gaussian density. The exact evidence and the restricted bound of Proposition~\ref{prop:gap} are
+\begin{align}
+ \log p(x)&=\log\varphi(x;\rho m_0,\rho^2v_0+\tau^2+\sigma^2 B),\\
+ \log A_x&=\log\varphi(x;\rho m_0,\rho^2v_0+\tau^2)
+              -\frac{\sigma^2 B}{2\tau^2}.
+\end{align}
+The second display follows by averaging the log likelihood at fixed \(Z_0\) before exponentiating. For \(a=0.65\), \(\sigma=0.75\), \(\tau=0.35\), \(x=0.70\), \(m_0=-0.20\), \(v_0=0.60\), and steps \((0.13,0.29,0.11,0.37,0.41,0.24,0.45)\), the gap is \(2.578\) nats.
+
+For the gradient check we take the known initial state \(z_0=m_0\) and \(u=0\). Let \(p_n=\sum_{j<n}\beta_j\xi_j\). The sample derivative with respect to \(\sigma\) is
+\[
+ G=\frac{(x-\rho z_0)W-\sigma W^2}{\tau^2}.
+\]
+The conditional first- and second-order coefficients for step \(n\) are
+\[
+ B_{n,1}=\frac{\beta_n(x-\rho z_0-2\sigma p_n)}{\tau^2},
+ \qquad
+ B_{n,2}=-\frac{\sqrt{2}\,\sigma\beta_n^2}{\tau^2}.
+\]
+They follow by expanding \(W=p_n+\beta_n\xi_n+\sum_{j>n}\beta_j\xi_j\). All higher coefficients vanish. The raw and first-order residual variances are
+\begin{equation}
+ \Var(G)=\frac{(x-\rho z_0)^2 B+2\sigma^2 B^2}{\tau^4},
+ \qquad
+ \Var(G-C_1)=\frac{2\sigma^2\sum_n\beta_n^4}{\tau^4}.
+\end{equation}
+These are \(83.28\) and \(18.32\) for the chosen grid. On \(200{,}000\) simulated paths the corresponding variances were \(82.87\) and \(18.58\). With both orders the adjusted gradient was within \(3.2\times 10^{-14}\) of the exact conditional mean \(-\sigma B/\tau^2\) on every simulated path.
+
+\subsection{Nonlinear smoothing under irregular observations}
+\label{sec:nonlinear}
+The scalar latent model has \(Z_0=-0.2\), \(b(z)=-a z+b_1\tanh(z)\), and \(\Sigma(z)=0.55+0.19\tanh(z)\). Emissions are Gaussian with mean \(Z_{t_i}\) and standard deviation \(0.30\). The recognition guide is \(u_\phi(z,t,c_x)=c\tanh(y_{\rm next}-z)\), where \(y_{\rm next}\) is the next scheduled observation value from the fixed sequence. The guide is held to that observation on each grid interval leading up to its emission. Four contexts were simulated independently with the prior using \(a=0.8\), \(b_1=0.55\) and 16 Euler substeps per observation interval. Each context has four irregular times drawn uniformly over \([0.20,1.80]\) and a final time of \(2.0\). For the estimator comparison we use four substeps per interval and evaluate the gradient in all three coordinates \((a,b_1,c)\) at \((0.8,0.55,0.9)\). The fixed prior and recognition initial states coincide, so their initial KL is zero.
+
+At each step in each context, we fit a quadratic ridge regression on standardized nonconstant polynomial features of \((Z_n,S_n)\). The penalty coefficient is \(0.01\) when squared errors are averaged and the intercept is unpenalized. We compare direct moment targets through order two, the mixed targets through orders one and two, and a second-order mixed-target control with only \(Z_n\) as input. We also compare antithetic sampling by pairing a path at \(\xi\) with one at \(-\xi\); its pair-mean variance is multiplied by two to account for the two path evaluations. The other ratios count only fresh evaluation paths. The pilot sizes are 128 and 1,024, using nested pilot draws, and the evaluation size is 8,192 independent paths per context and seed. The base estimator and each correction use the same evaluation paths. Both the parameter gradient and the mixed derivatives were checked against centered finite differences. The table aggregates eight seeds in each of four contexts.
+
+\begin{table}[tbp]
+\centering
+\caption{Gradient variance trace relative to the uncorrected pathwise estimator (ratio \(1\)). Entries are medians with interquartile ranges across 32 context--seed runs. Smaller is better.}
+\label{tab:variance}
+\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Estimator & 128 pilot paths & 1,024 pilot paths\\
+\midrule
+Antithetic, per path     & \(1.37\ [1.11,1.46]\) & \(1.37\ [1.11,1.46]\) \\
+Direct moments, orders 1--2 & \(5.98\ [4.78,8.22]\) & \(1.06\ [0.92,1.22]\) \\
+Mixed targets, order 1   & \(\mathbf{0.081}\ [0.072,0.100]\) & \(0.047\ [0.039,0.062]\) \\
+Mixed targets, orders 1--2 & \(0.112\ [0.092,0.139]\) & \(\mathbf{0.015}\ [0.013,0.016]\) \\
+Mixed targets, orders 1--2, state only & \(0.126\ [0.119,0.138]\) & \(0.081\ [0.072,0.086]\) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:variance} shows that the mixed targets can change the practical value of the same Hermite basis. Direct moment fits increased the median variance at both pilot sizes. The first-order mixed-target fit had the lowest median at 128 pilots. At 1,024 pilots, the second-order fit retained about \(1.5\%\) of the baseline trace and performed better than its state-only counterpart. The ordering across the two pilot sizes is consistent with the trade-off in \eqref{eq:variance}: adding terms reduces truncation error at the population optimum, while the new coefficients still need to be estimated. The comparison measures the aggregate effect of adding coefficients.
+
+\section{Discussion and conclusion}
+The initial-only gap measures the cost of fixing the conditional path kernel even with an unrestricted initial encoder. Using an observation-conditioned drift enlarges the family, while sharing diffusion gives a tractable ELBO. The ability to represent the true smoother depends on the chosen guide.
+
+The variance correction gives a distinct role to the learned component of SLDI. The sample adjoint computes the exact gradient of the numerical objective, and a second adjoint produces supervised targets for predictable coefficients. This construction preserves the expected gradient even when the learned field is inaccurate. Its variance gains depend on how well the retained terms are fitted. In particular, the nonlinear results compare gradient variance at fixed parameters and exclude pilot-generation and fitting costs. Empirical conclusions are limited to gradient variance in the tested synthetic smoothers.
+
+The tangent state scales with the number of corrected directions, and a full second-order Gaussian basis scales quadratically in the innovation dimension. The directional formulation permits correction of a small parameter block, but its benefit at neural-network scale depends on the choice of block and the cost of updating its coefficient model. Similarly, initial-draw variance remains unless the initial innovation is included as an additional centered step. The results concern fixed grids that include the observation times. Adaptive solvers with grid choices that inspect the current innovation require a separate filtration analysis. These limits identify where the finite-grid variance reduction can be used directly and where further analysis is needed.
+
+\paragraph{Code and data availability.}
+The LaTeX source, synthetic data, experiment code and generated tables are available in
+\href{https://github.com/jameskrice7/Stochastic-Deep-Learning}{the SLDI repository}.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

@@ -1,0 +1,116 @@
+\begin{thebibliography}{13}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Archambeau et~al.(2007)Archambeau, Opper, Shen, Cornford, and
+  Shawe-Taylor]{archambeau2007variational}
+C{\'e}dric Archambeau, Manfred Opper, Yuan Shen, Dan Cornford, and John
+  Shawe-Taylor.
+\newblock Variational inference for diffusion processes.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~20, 2007.
+\newblock URL
+  \url{https://proceedings.neurips.cc/paper_files/paper/2007/hash/818f4654ed39a1c147d1e51a00ffb4cb-Abstract.html}.
+
+\bibitem[Belomestny et~al.(2018)Belomestny, H{\"a}fner, Nagapetyan, and
+  Urusov]{belomestny2018variance}
+Denis Belomestny, Stefan H{\"a}fner, Tigran Nagapetyan, and Mikhail Urusov.
+\newblock Variance reduction for discretised diffusions via regression.
+\newblock \emph{Journal of Mathematical Analysis and Applications},
+  458\penalty0 (1):\penalty0 393--418, 2018.
+\newblock \doi{10.1016/j.jmaa.2017.09.002}.
+
+\bibitem[Domingo-Enrich et~al.(2025)Domingo-Enrich, Drozdzal, Karrer, and
+  Chen]{dom2025adjoint}
+Carles Domingo-Enrich, Michal Drozdzal, Brian Karrer, and Ricky T.~Q. Chen.
+\newblock Adjoint matching: Fine-tuning flow and diffusion generative models
+  with memoryless stochastic optimal control.
+\newblock In \emph{International Conference on Learning Representations}, 2025.
+\newblock URL \url{https://openreview.net/forum?id=xQBRrtQM8u}.
+
+\bibitem[Girsanov(1960)]{girsanov1960transforming}
+I.~V. Girsanov.
+\newblock On transforming a certain class of stochastic processes by absolutely
+  continuous substitution of measures.
+\newblock \emph{Theory of Probability and Its Applications}, 5\penalty0
+  (3):\penalty0 285--301, 1960.
+\newblock \doi{10.1137/1105027}.
+
+\bibitem[Kidger et~al.(2021)Kidger, Foster, Li, and Lyons]{kidger2021efficient}
+Patrick Kidger, James Foster, Xuechen Li, and Terry Lyons.
+\newblock Efficient and accurate gradients for neural {SDEs}.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~34, 2021.
+\newblock URL
+  \url{https://proceedings.neurips.cc/paper/2021/hash/9ba196c7a6e89eafd0954de80fc1b224-Abstract.html}.
+
+\bibitem[Li et~al.(2020)Li, Wong, Chen, and Duvenaud]{li2020scalable}
+Xuechen Li, Ting-Kam~Leonard Wong, Ricky T.~Q. Chen, and David~K. Duvenaud.
+\newblock Scalable gradients and variational inference for stochastic
+  differential equations.
+\newblock In \emph{Proceedings of the 2nd Symposium on Advances in Approximate
+  Bayesian Inference}, volume 118 of \emph{Proceedings of Machine Learning
+  Research}, pages 1--28, 2020.
+\newblock URL \url{https://proceedings.mlr.press/v118/li20a.html}.
+
+\bibitem[Mei and Taghvaei(2026)]{mei2026bsde}
+Yuhang Mei and Amirhossein Taghvaei.
+\newblock Time-reversed {BSDEs} for accurate gradient estimation in diffusion
+  models.
+\newblock arXiv:2603.20455v2, 2026.
+\newblock URL \url{https://arxiv.org/abs/2603.20455v2}.
+
+\bibitem[Miller et~al.(2017)Miller, Foti, D'Amour, and
+  Adams]{miller2017reducing}
+Andrew Miller, Nicholas Foti, Alexander D'Amour, and Ryan~P. Adams.
+\newblock Reducing reparameterization gradient variance.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~30, 2017.
+\newblock URL
+  \url{https://papers.neurips.cc/paper_files/paper/2017/hash/325995af77a0e8b06d1204a171010b3a-Abstract.html}.
+
+\bibitem[Rice(2026)]{rice2026sldi}
+James Rice.
+\newblock Stochastic deep learning: A probabilistic framework for modeling
+  uncertainty in structured temporal data.
+\newblock arXiv:2601.05227v1, 2026.
+\newblock URL \url{https://arxiv.org/abs/2601.05227v1}.
+
+\bibitem[Roeder et~al.(2017)Roeder, Wu, and Duvenaud]{roeder2017sticking}
+Geoffrey Roeder, Yuhuai Wu, and David~K. Duvenaud.
+\newblock Sticking the landing: Simple, lower-variance gradient estimators for
+  variational inference.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~30, 2017.
+\newblock URL
+  \url{https://papers.neurips.cc/paper_files/paper/2017/hash/e91068fff3d7fa1594dfdf3b4308433a-Abstract.html}.
+
+\bibitem[Rubanova et~al.(2019)Rubanova, Chen, and Duvenaud]{rubanova2019latent}
+Yulia Rubanova, Ricky T.~Q. Chen, and David~K. Duvenaud.
+\newblock Latent ordinary differential equations for irregularly-sampled time
+  series.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~32, 2019.
+\newblock URL
+  \url{https://proceedings.neurips.cc/paper/2019/hash/42a6845a557bef704ad8ac9cb4461d43-Abstract.html}.
+
+\bibitem[Schauer et~al.(2017)Schauer, van~der Meulen, and van
+  Zanten]{schauer2017guided}
+Moritz Schauer, Frank van~der Meulen, and Harry van Zanten.
+\newblock Guided proposals for simulating multi-dimensional diffusion bridges.
+\newblock \emph{Bernoulli}, 23\penalty0 (4A):\penalty0 2917--2950, 2017.
+\newblock \doi{10.3150/16-BEJ833}.
+
+\bibitem[Xu et~al.(2022)Xu, Chen, Li, and Duvenaud]{xu2022infinitely}
+Winnie Xu, Ricky T.~Q. Chen, Xuechen Li, and David Duvenaud.
+\newblock Infinitely deep {Bayesian} neural networks with stochastic
+  differential equations.
+\newblock In \emph{Proceedings of the 25th International Conference on
+  Artificial Intelligence and Statistics}, volume 151 of \emph{Proceedings of
+  Machine Learning Research}, pages 721--738, 2022.
+\newblock URL \url{https://proceedings.mlr.press/v151/xu22a.html}.
+
+\end{thebibliography}

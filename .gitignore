@@ -1,0 +1,10 @@
+__pycache__/
+*.olean
+*.ilean
+*.aux
+*.blg
+*.log
+*.out
+*.synctex.gz
+paper/main.pdf
+regenerated/
