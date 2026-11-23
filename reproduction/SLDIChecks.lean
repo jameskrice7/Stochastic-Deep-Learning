@@ -84,6 +84,26 @@ theorem weighted_square_split {α : Type} (weights : List (α × Rat))
   rw [expansion, weighted_add, weighted_add, weighted_scale, orthogonal]
   grind
 
+def gain {α : Type} (weights : List (α × Rat)) (gradient term : α → Rat) : Rat :=
+  weighted weights (fun x => (gradient x)^2) -
+    weighted weights (fun x => (gradient x - term x)^2)
+
+/-- The second-moment gain from two orthogonal correction groups is additive.
+    This gives the covariance-trace identity coordinatewise after centering. -/
+theorem disjoint_gain {α : Type} (weights : List (α × Rat))
+    (gradient early late : α → Rat)
+    (orthogonal : weighted weights (fun x => early x * late x) = 0) :
+    gain weights gradient (fun x => early x + late x) =
+      gain weights gradient early + gain weights gradient late := by
+  have identity : (fun x => (gradient x - (early x + late x))^2) =
+      (fun x => (gradient x - early x)^2 + (gradient x - late x)^2 -
+        (gradient x)^2 + 2 * (early x * late x)) := by
+    funext x
+    grind
+  unfold gain
+  rw [identity, weighted_add, weighted_scale, orthogonal, weighted_sub, weighted_add]
+  grind
+
 /-- One Hermite step for the OU example, using the unnormalized quadratic
     innovation. Its factor is algebraically the same as the product of
     the normalized feature and its coefficient in the manuscript. -/
@@ -133,6 +153,7 @@ theorem ou_zero_variance (steps : List (Rat × Rat)) (d sigma : Rat) :
 #print axioms predictable_unbiased
 #print axioms orthogonal_to_past
 #print axioms weighted_square_split
+#print axioms disjoint_gain
 #print axioms ou_zero_variance
 
 end SLDI

@@ -28,9 +28,9 @@ def schedule(observation_times, observations, substeps=SUBSTEPS):
     return np.array(steps), np.array(guide), np.array(emit)
 
 
-def nonlinear_paths(noise, times, observations, parameters=PARAMETERS):
+def nonlinear_paths(noise, times, observations, parameters=PARAMETERS, substeps=SUBSTEPS):
     """Return path ELBOs, exact gradients, and mixed innovation derivatives."""
-    steps, guide, emit = schedule(times, observations)
+    steps, guide, emit = schedule(times, observations, substeps=substeps)
     batch_size, nsteps = noise.shape
     z = np.full(batch_size, -0.2)
     tangent = np.zeros((batch_size, len(parameters)))
@@ -123,10 +123,10 @@ def polynomial_features(state, use_tangent):
     return np.column_stack((state, state[:, first] * state[:, second]))
 
 
-def correction(train_state, test_state, targets, test_basis, use_tangent):
+def correction(train_state, test_state, targets, test_basis, use_tangent, stepwise=False):
     """Fit independent ridge regressions at each time on pilot paths only."""
     nsamples, nsteps, nparameters = targets[0].shape
-    estimate = np.zeros((test_state.shape[0], nparameters))
+    estimate = np.empty((test_state.shape[0], nsteps, nparameters))
     for k in range(nsteps):
         train = polynomial_features(train_state[:, k], use_tangent)
         test = polynomial_features(test_state[:, k], use_tangent)
@@ -140,8 +140,8 @@ def correction(train_state, test_state, targets, test_basis, use_tangent):
         responses = np.concatenate([target[:, k] for target in targets], axis=1)
         weights = np.linalg.solve(train.T @ train + penalty, train.T @ responses)
         fitted = (test @ weights).reshape(len(test), len(targets), nparameters)
-        estimate += (test_basis[:, k, :, None] * fitted).sum(axis=1)
-    return estimate
+        estimate[:, k] = (test_basis[:, k, :, None] * fitted).sum(axis=1)
+    return estimate if stepwise else estimate.sum(axis=1)
 
 
 def basis(noise):
@@ -233,8 +233,39 @@ def ou_benchmark():
         return -0.5 * (np.log(2 * np.pi * var) + (x - rho * z0)**2 / var)
 
     gap = log_density(var_in + path_var) - log_density(var_in) + path_var / (2 * tau**2)
+    # Compute the smallest KL achievable by Euler mean shifts with fixed transition variance.
+    conditional_loading = coefficients / np.sqrt(steps)
+    tail_variance = tau**2 + sigma**2 * (b2 - np.cumsum(coefficients**2))
+    tilt = sigma**2 * steps * conditional_loading**2 / tail_variance
+    drift_only_gap = 0.5 * (tilt - np.log1p(tilt)).sum()
+
+    # Independently verify it using the joint Gaussian smoother and the
+    # covariance of the recognition chain with optimal transition means.
+    prior_factor = np.eye(len(steps) + 1)
+    prior_factor[0, 0] = np.sqrt(prior_variance)
+    for index, dt in enumerate(steps):
+        prior_factor[index + 1, :index + 1] = multiplier[index] * prior_factor[index, :index + 1]
+        prior_factor[index + 1, index + 1] = sigma * np.sqrt(dt)
+    prior_cov = prior_factor @ prior_factor.T
+    posterior_cov = prior_cov - np.outer(prior_cov[:, -1], prior_cov[-1]) / (
+        prior_cov[-1, -1] + tau**2
+    )
+    guide_factor = np.eye(len(steps) + 1)
+    guide_factor[0, 0] = np.sqrt(posterior_cov[0, 0])
+    for index, dt in enumerate(steps):
+        guide_factor[index + 1, :index + 1] = (
+            multiplier[index] / (1 + tilt[index]) * guide_factor[index, :index + 1]
+        )
+        guide_factor[index + 1, index + 1] = sigma * np.sqrt(dt)
+    guide_cov = guide_factor @ guide_factor.T
+    joint_kl = 0.5 * (
+        np.trace(np.linalg.solve(posterior_cov, guide_cov)) - len(guide_cov)
+        + np.linalg.slogdet(posterior_cov)[1] - np.linalg.slogdet(guide_cov)[1]
+    )
+    np.testing.assert_allclose(joint_kl, drift_only_gap, atol=1e-12)
     return dict(
-        gap=gap, mean=mean, raw_mean=raw.mean(), raw_var=raw.var(ddof=1),
+        gap=gap, drift_only_gap=drift_only_gap, joint_kl=joint_kl,
+        mean=mean, raw_mean=raw.mean(), raw_var=raw.var(ddof=1),
         expected_var=expected_var, first_var=debiased1.var(ddof=1),
         expected_first=expected_residual, max_oracle_error=np.max(np.abs(debiased2 - mean)),
     )
@@ -258,6 +289,77 @@ def summarize(rows):
     return summary
 
 
+def local_gain(gradient, increments):
+    """Estimate additive trace reduction using only held-out paths."""
+    centered_gradient = gradient - gradient.mean(axis=0)
+    centered_increments = increments - increments.mean(axis=0)
+    cross = np.einsum("bp,bnp->n", centered_gradient, centered_increments)
+    energy = np.einsum("bnp,bnp->n", centered_increments, centered_increments)
+    return (2 * cross - energy) / (len(gradient) - 1)
+
+
+def grid_benchmark():
+    """Use nested Brownian increments for a grid and localization ablation."""
+    rows = []
+    refinements = (2, 4, 8)
+    for case, times, y in cases():
+        intervals = len(times)
+        for seed in SEEDS:
+            rng = np.random.default_rng(np.random.SeedSequence([5097, case, seed]))
+            fine_pilot = rng.standard_normal((1024, intervals, refinements[-1]))
+            fine_test = rng.standard_normal((4096, intervals, refinements[-1]))
+            for substeps in refinements:
+                stride = refinements[-1] // substeps
+
+                def coarsen(noise):
+                    return (noise.reshape(len(noise), -1, stride).sum(axis=-1)
+                            / np.sqrt(stride))
+
+                pilot = coarsen(fine_pilot)
+                noise = coarsen(fine_test)
+                _, _, pilot_state, mixed = nonlinear_paths(pilot, times, y, substeps=substeps)
+                _, gradient, test_state, _ = nonlinear_paths(noise, times, y, substeps=substeps)
+                targets = [mixed, mixed * pilot[:, :, None] / np.sqrt(2)]
+                test_basis = basis(noise)
+                base = variance(gradient)
+                emit = schedule(times, y, substeps=substeps)[2]
+                for method, tangent in (("tangent", True), ("state", False)):
+                    increments = correction(
+                        pilot_state, test_state, targets, test_basis, tangent, stepwise=True,
+                    )
+                    full_ratio = variance(gradient - increments.sum(axis=1)) / base
+                    # Equal-sized subsets: the first and last step of each observation interval.
+                    first = increments[:, np.roll(emit, 1), :].sum(axis=1)
+                    last = increments[:, emit, :].sum(axis=1)
+                    gain = local_gain(gradient, increments) / base
+                    rows.append(dict(
+                        case=case, seed=seed, substeps=substeps, method=method,
+                        full_ratio=full_ratio, first_ratio=variance(gradient - first) / base,
+                        last_ratio=variance(gradient - last) / base,
+                        first_gain=gain[np.roll(emit, 1)].sum(), last_gain=gain[emit].sum(),
+                        total_local_gain=gain.sum(),
+                    ))
+    return rows
+
+
+def summarize_grid(rows):
+    summary = []
+    for substeps in (2, 4, 8):
+        for method in ("tangent", "state"):
+            selected = [row for row in rows
+                        if row["substeps"] == substeps and row["method"] == method]
+            center = {name: np.median([row[name] for row in selected]) for name in
+                      ("full_ratio", "first_ratio", "last_ratio", "first_gain", "last_gain")}
+            difference = [row["first_ratio"] - row["last_ratio"] for row in selected]
+            lower, median, upper = np.quantile(difference, [0.25, 0.50, 0.75])
+            summary.append(dict(
+                substeps=substeps, method=method, **center,
+                median_paired_improvement=median, paired_q25=lower, paired_q75=upper,
+                last_wins=sum(value > 0 for value in difference), runs=len(selected),
+            ))
+    return summary
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default=Path("results"), type=Path)
@@ -266,6 +368,8 @@ def main():
     oracle = ou_benchmark()
     nonlinear = nonlinear_benchmark()
     summary = summarize(nonlinear)
+    grid = grid_benchmark()
+    grid_summary = summarize_grid(grid)
     contexts = [
         dict(case=case, time=time, observation=observation)
         for case, times, values in cases() for time, observation in zip(times, values)
@@ -274,7 +378,9 @@ def main():
     write_csv(args.out / "nonlinear_runs.csv", nonlinear)
     write_csv(args.out / "nonlinear_summary.csv", summary)
     write_csv(args.out / "contexts.csv", contexts)
-    for row in [oracle, *summary]:
+    write_csv(args.out / "grid_runs.csv", grid)
+    write_csv(args.out / "grid_summary.csv", grid_summary)
+    for row in [oracle, *summary, *grid_summary]:
         print("  ".join(f"{key}={value:.6g}" if isinstance(value, float)
                         else f"{key}={value}" for key, value in row.items()))
 

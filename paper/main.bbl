@@ -1,4 +1,4 @@
-\begin{thebibliography}{13}
+\begin{thebibliography}{23}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -23,6 +23,23 @@ Denis Belomestny, Stefan H{\"a}fner, Tigran Nagapetyan, and Mikhail Urusov.
   458\penalty0 (1):\penalty0 393--418, 2018.
 \newblock \doi{10.1016/j.jmaa.2017.09.002}.
 
+\bibitem[Blundell et~al.(2015)Blundell, Cornebise, Kavukcuoglu, and
+  Wierstra]{blundell2015weight}
+Charles Blundell, Julien Cornebise, Koray Kavukcuoglu, and Daan Wierstra.
+\newblock Weight uncertainty in neural network.
+\newblock In \emph{Proceedings of the 32nd International Conference on Machine
+  Learning}, volume~37 of \emph{Proceedings of Machine Learning Research},
+  pages 1613--1622, 2015.
+\newblock URL \url{https://proceedings.mlr.press/v37/blundell15.html}.
+
+\bibitem[Chen et~al.(2018)Chen, Rubanova, Bettencourt, and Duvenaud]{Chen2018}
+Ricky T.~Q. Chen, Yulia Rubanova, Jesse Bettencourt, and David~K. Duvenaud.
+\newblock Neural ordinary differential equations.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~31, 2018.
+\newblock URL
+  \url{https://proceedings.neurips.cc/paper/2018/hash/69386f6bb1dfed68692a24c8686939b9-Abstract.html}.
+
 \bibitem[Domingo-Enrich et~al.(2025)Domingo-Enrich, Drozdzal, Karrer, and
   Chen]{dom2025adjoint}
 Carles Domingo-Enrich, Michal Drozdzal, Brian Karrer, and Ricky T.~Q. Chen.
@@ -30,6 +47,15 @@ Carles Domingo-Enrich, Michal Drozdzal, Brian Karrer, and Ricky T.~Q. Chen.
   with memoryless stochastic optimal control.
 \newblock In \emph{International Conference on Learning Representations}, 2025.
 \newblock URL \url{https://openreview.net/forum?id=xQBRrtQM8u}.
+
+\bibitem[Gal and Ghahramani(2016)]{gal2016dropout}
+Yarin Gal and Zoubin Ghahramani.
+\newblock Dropout as a {Bayesian} approximation: Representing model uncertainty
+  in deep learning.
+\newblock In \emph{Proceedings of the 33rd International Conference on Machine
+  Learning}, volume~48 of \emph{Proceedings of Machine Learning Research},
+  pages 1050--1059, 2016.
+\newblock URL \url{https://proceedings.mlr.press/v48/gal16.html}.
 
 \bibitem[Girsanov(1960)]{girsanov1960transforming}
 I.~V. Girsanov.
@@ -39,13 +65,45 @@ I.~V. Girsanov.
   (3):\penalty0 285--301, 1960.
 \newblock \doi{10.1137/1105027}.
 
-\bibitem[Kidger et~al.(2021)Kidger, Foster, Li, and Lyons]{kidger2021efficient}
+\bibitem[Kidger et~al.(2021{\natexlab{a}})Kidger, Foster, Li, and
+  Lyons]{kidger2021efficient}
 Patrick Kidger, James Foster, Xuechen Li, and Terry Lyons.
 \newblock Efficient and accurate gradients for neural {SDEs}.
 \newblock In \emph{Advances in Neural Information Processing Systems},
-  volume~34, 2021.
+  volume~34, 2021{\natexlab{a}}.
 \newblock URL
   \url{https://proceedings.neurips.cc/paper/2021/hash/9ba196c7a6e89eafd0954de80fc1b224-Abstract.html}.
+
+\bibitem[Kidger et~al.(2021{\natexlab{b}})Kidger, Foster, Li, Oberhauser, and
+  Lyons]{kidger2021neural}
+Patrick Kidger, James Foster, Xuechen Li, Harald Oberhauser, and Terry Lyons.
+\newblock Neural {SDEs} as infinite-dimensional {GANs}.
+\newblock In \emph{Proceedings of the 38th International Conference on Machine
+  Learning}, volume 139 of \emph{Proceedings of Machine Learning Research},
+  pages 5453--5463, 2021{\natexlab{b}}.
+\newblock URL \url{https://proceedings.mlr.press/v139/kidger21b/kidger21b.pdf}.
+
+\bibitem[Kingma and Welling(2013)]{kingma2013auto}
+Diederik~P. Kingma and Max Welling.
+\newblock Auto-encoding variational {Bayes}.
+\newblock arXiv:1312.6114, 2013.
+\newblock URL \url{https://arxiv.org/abs/1312.6114}.
+
+\bibitem[Kloeden and Platen(1992)]{kloeden1992numerical}
+Peter~E. Kloeden and Eckhard Platen.
+\newblock \emph{Numerical Solution of Stochastic Differential Equations}.
+\newblock Springer, 1992.
+\newblock \doi{10.1007/978-3-662-12616-5}.
+
+\bibitem[Lakshminarayanan et~al.(2017)Lakshminarayanan, Pritzel, and
+  Blundell]{lakshminarayanan2017simple}
+Balaji Lakshminarayanan, Alexander Pritzel, and Charles Blundell.
+\newblock Simple and scalable predictive uncertainty estimation using deep
+  ensembles.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~30, 2017.
+\newblock URL
+  \url{https://papers.neurips.cc/paper/2017/hash/9ef2ed4b7fd2c810847ffa5fa85bce38-Abstract.html}.
 
 \bibitem[Li et~al.(2020)Li, Wong, Chen, and Duvenaud]{li2020scalable}
 Xuechen Li, Ting-Kam~Leonard Wong, Ricky T.~Q. Chen, and David~K. Duvenaud.
@@ -72,6 +130,19 @@ Andrew Miller, Nicholas Foti, Alexander D'Amour, and Ryan~P. Adams.
 \newblock URL
   \url{https://papers.neurips.cc/paper_files/paper/2017/hash/325995af77a0e8b06d1204a171010b3a-Abstract.html}.
 
+\bibitem[Neal(1996)]{neal2012bayesian}
+Radford~M. Neal.
+\newblock \emph{Bayesian Learning for Neural Networks}, volume 118 of
+  \emph{Lecture Notes in Statistics}.
+\newblock Springer, 1996.
+\newblock \doi{10.1007/978-1-4612-0745-0}.
+
+\bibitem[Rasmussen and Williams(2006)]{rasmussen2005gaussian}
+Carl~Edward Rasmussen and Christopher K.~I. Williams.
+\newblock \emph{Gaussian Processes for Machine Learning}.
+\newblock MIT Press, 2006.
+\newblock URL \url{https://gaussianprocess.org/gpml/}.
+
 \bibitem[Rice(2026)]{rice2026sldi}
 James Rice.
 \newblock Stochastic deep learning: A probabilistic framework for modeling
@@ -96,6 +167,12 @@ Yulia Rubanova, Ricky T.~Q. Chen, and David~K. Duvenaud.
   volume~32, 2019.
 \newblock URL
   \url{https://proceedings.neurips.cc/paper/2019/hash/42a6845a557bef704ad8ac9cb4461d43-Abstract.html}.
+
+\bibitem[S{\"a}rkk{\"a} and Solin(2019)]{sarkka2019applied}
+Simo S{\"a}rkk{\"a} and Arno Solin.
+\newblock \emph{Applied Stochastic Differential Equations}.
+\newblock Cambridge University Press, 2019.
+\newblock \doi{10.1017/9781108186735}.
 
 \bibitem[Schauer et~al.(2017)Schauer, van~der Meulen, and van
   Zanten]{schauer2017guided}
